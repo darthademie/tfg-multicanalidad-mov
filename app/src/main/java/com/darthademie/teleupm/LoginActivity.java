@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Patterns;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,6 +21,10 @@ import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
+import com.google.firebase.auth.FirebaseAuthInvalidUserException;
+import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 
@@ -68,8 +73,28 @@ public class LoginActivity extends AppCompatActivity {
             String email = binding.etEmail.getText() != null ? binding.etEmail.getText().toString().trim() : "";
             String password = binding.etPassword.getText() != null ? binding.etPassword.getText().toString().trim() : "";
 
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(LoginActivity.this, "Por favor, completa todos los campos.", Toast.LENGTH_SHORT).show();
+            boolean isValid = true;
+
+            // Validación de correo electrónico (formato usuario@dominio.extension)
+            if (email.isEmpty()) {
+                binding.tilEmail.setError("Por favor, introduce tu correo electrónico.");
+                isValid = false;
+            } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.setError("Formato de correo no válido (ejemplo@dominio.com).");
+                isValid = false;
+            } else {
+                binding.tilEmail.setError(null);
+            }
+
+            // Validación de contraseña
+            if (password.isEmpty()) {
+                binding.tilPassword.setError("Por favor, introduce tu contraseña.");
+                isValid = false;
+            } else {
+                binding.tilPassword.setError(null);
+            }
+
+            if (!isValid) {
                 return;
             }
 
@@ -131,9 +156,8 @@ public class LoginActivity extends AppCompatActivity {
                         Toast.makeText(LoginActivity.this, "¡Inicio de sesión correcto!", Toast.LENGTH_SHORT).show();
                         goToMainActivity();
                     } else {
-                        String errorMsg = task.getException() != null ?
-                                task.getException().getLocalizedMessage() : "Error de autenticación.";
-                        Toast.makeText(LoginActivity.this, "Error: " + errorMsg, Toast.LENGTH_LONG).show();
+                        String errorMsg = getFriendlyFirebaseErrorMessage(task.getException());
+                        Toast.makeText(LoginActivity.this, errorMsg, Toast.LENGTH_LONG).show();
                     }
                 });
     }
@@ -161,8 +185,12 @@ public class LoginActivity extends AppCompatActivity {
                     Toast.makeText(this, "No se pudo obtener la cuenta de Google.", Toast.LENGTH_SHORT).show();
                 }
             } catch (ApiException e) {
-                Log.w(TAG, "Error en Google Sign-In: código " + e.getStatusCode(), e);
-                Toast.makeText(this, "Error al conectar con Google (código: " + e.getStatusCode() + ")", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Error en Google Sign-In: código " + e.getStatusCode(), e);
+                if (e.getStatusCode() == 10) {
+                    Toast.makeText(this, "Error 10 (DEVELOPER_ERROR): Fallo con la huella digital de la app. Contacte al administrador", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Error al conectar con Google (código: " + e.getStatusCode() + ")", Toast.LENGTH_SHORT).show();
+                }
             }
         }
     }
@@ -179,14 +207,48 @@ public class LoginActivity extends AppCompatActivity {
                         if (user != null && user.getEmail() != null) {
                             saveRememberMePreference(user.getEmail());
                         }
-                        Toast.makeText(LoginActivity.this, "¡Bienvenido!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "¡Bienvenido a TeleUPM!", Toast.LENGTH_SHORT).show();
                         goToMainActivity();
                     } else {
-                        String errorMsg = task.getException() != null ?
-                                task.getException().getLocalizedMessage() : "Error de autenticación con Google.";
-                        Toast.makeText(LoginActivity.this, "Error: " + errorMsg, Toast.LENGTH_LONG).show();
+                        String errorMsg = getFriendlyFirebaseErrorMessage(task.getException());
+                        Toast.makeText(LoginActivity.this, errorMsg, Toast.LENGTH_LONG).show();
                     }
                 });
+    }
+
+    /**
+     * Traduce las excepciones de Firebase Auth a mensajes amigables en español para el usuario.
+     */
+    private String getFriendlyFirebaseErrorMessage(Exception e) {
+        if (e instanceof FirebaseAuthInvalidCredentialsException) {
+            return "El usuario o la contraseña son incorrectos.";
+        } else if (e instanceof FirebaseAuthInvalidUserException) {
+            String errorCode = ((FirebaseAuthInvalidUserException) e).getErrorCode();
+            if ("ERROR_USER_DISABLED".equals(errorCode)) {
+                return "Esta cuenta de usuario ha sido deshabilitada.";
+            }
+            return "No existe ninguna cuenta registrada con este correo electrónico.";
+        } else if (e instanceof FirebaseAuthUserCollisionException) {
+            return "Ya existe una cuenta registrada con este correo electrónico.";
+        } else if (e instanceof FirebaseAuthException) {
+            FirebaseAuthException authException = (FirebaseAuthException) e;
+            switch (authException.getErrorCode()) {
+                case "ERROR_INVALID_EMAIL":
+                    return "El formato del correo electrónico no es válido.";
+                case "ERROR_WRONG_PASSWORD":
+                case "ERROR_USER_NOT_FOUND":
+                    return "El usuario o la contraseña son incorrectos.";
+                case "ERROR_USER_DISABLED":
+                    return "Esta cuenta de usuario ha sido deshabilitada.";
+                case "ERROR_TOO_MANY_REQUESTS":
+                    return "Demasiados intentos fallidos. Por favor, inténtalo más tarde.";
+                case "ERROR_OPERATION_NOT_ALLOWED":
+                    return "El inicio de sesión no está habilitado en Firebase Console.";
+                default:
+                    return authException.getLocalizedMessage();
+            }
+        }
+        return e != null ? e.getLocalizedMessage() : "Error de autenticación desconocido.";
     }
 
     private void goToMainActivity() {
