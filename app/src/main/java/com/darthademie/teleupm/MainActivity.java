@@ -7,8 +7,11 @@ import android.view.MenuItem;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 import com.darthademie.teleupm.databinding.ActivityMainBinding;
+import com.google.android.material.tabs.TabLayoutMediator;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -23,6 +26,31 @@ public class MainActivity extends AppCompatActivity {
 
         // Configuramos la Toolbar
         setSupportActionBar(binding.toolbar);
+
+        // ViewPager2 Adapter
+        binding.viewPager.setAdapter(new FragmentStateAdapter(this) {
+            @NonNull
+            @Override
+            public Fragment createFragment(int position) {
+                // position 0: Disponibles (isActiveTab = false)
+                // position 1: Mis Tarifas (isActiveTab = true)
+                return TarifasFragment.newInstance(position == 1);
+            }
+
+            @Override
+            public int getItemCount() {
+                return 2;
+            }
+        });
+
+        // Conectar TabLayout con ViewPager2
+        new TabLayoutMediator(binding.tabLayout, binding.viewPager, (tab, position) -> {
+            if (position == 0) {
+                tab.setText("Tarifas Disponibles");
+            } else {
+                tab.setText("Mis Tarifas");
+            }
+        }).attach();
     }
 
     @Override
