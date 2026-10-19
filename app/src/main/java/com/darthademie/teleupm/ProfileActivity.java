@@ -46,6 +46,16 @@ public class ProfileActivity extends AppCompatActivity {
             Toast.makeText(this, "No se ha iniciado sesión", Toast.LENGTH_SHORT).show();
             finish();
         }
+
+        binding.btnLogout.setOnClickListener(v -> {
+            mAuth.signOut();
+            Toast.makeText(this, "Sesión cerrada", Toast.LENGTH_SHORT).show();
+            // Volver a la pantalla de Login y limpiar la pila de Activities
+            android.content.Intent intent = new android.content.Intent(ProfileActivity.this, LoginActivity.class);
+            intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
     }
 
     private void loadUserProfile(String uid) {
