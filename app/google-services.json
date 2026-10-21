@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "632604922699",
+    "firebase_url": "https://bbdd-multicanalidad-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "bbdd-multicanalidad",
+    "storage_bucket": "bbdd-multicanalidad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:632604922699:android:3c018a7dc95d69dc5a4ece",
+        "android_client_info": {
+          "package_name": "com.darthademie.teleupm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "632604922699-al802t8f8pmmegurvkj4l84hcglc12u8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.darthademie.teleupm",
+            "certificate_hash": "41de1915d0f3a90b8a1faf15ea293f933a8bfbd5"
+          }
+        },
+        {
+          "client_id": "632604922699-361pjf5omjdr13ikf9joa5odoqq7cmal.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5Ic75moe0gsoOna5YRGWWpeuupHd8mEU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "632604922699-361pjf5omjdr13ikf9joa5odoqq7cmal.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
