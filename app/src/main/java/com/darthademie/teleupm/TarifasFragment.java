@@ -155,6 +155,12 @@ public class TarifasFragment extends Fragment {
                         .setValue(tarifa.id)
                         .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "La operación se ha aplicado con éxito para este mes", Toast.LENGTH_SHORT).show())
                         .addOnFailureListener(e -> Toast.makeText(getContext(), "Inténtelo más tarde", Toast.LENGTH_SHORT).show());
+                // Aniadimos el valor de oferta al procesador de ofertas
+                Map<String, Object> ofertaData = new HashMap<>();
+                ofertaData.put("name", tarifa.id);
+                ofertaData.put("origin", "mobile");
+                ofertaData.put("uid_fb", currentUid);
+                dbRef.child("cola_procesamiento/ofertas").push().setValue(ofertaData);
             });
             builder.setNegativeButton("No", null);
         }
