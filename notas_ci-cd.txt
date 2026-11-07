@@ -1,0 +1,51 @@
+--------> Justificación de Seguridad: Gestión de Keystores en CI/CD
+
+En el marco de este Trabajo de Fin de Grado, la aplicación Android se compila en modo de desarrollo (debug). Para permitir la autenticación con servicios como Firebase, se ha optado por incluir un almacén de claves estático (debug.keystore) y sus credenciales públicas por defecto directamente en el repositorio de Git. Esta es una práctica estándar y segura para pruebas, ya que las firmas de debug son rechazadas por defecto en tiendas de aplicaciones reales.
+
+Sin embargo, a nivel profesional y en entornos de producción, versionar certificados o contraseñas en el código fuente constituye una vulnerabilidad crítica (Fuga de Secretos). 
+
+La mejor práctica de la industria (DevSecOps) dicta que el archivo de producción y sus contraseñas deben alojarse en un gestor de secretos cifrado (como el propio Jenkins o HashiCorp Vault). El pipeline de CI/CD debe recuperar estos datos temporalmente e inyectarlos como variables de entorno únicamente en el instante exacto de la compilación de la Release, evitando por completo su exposición en el código.
+
+---
+
+ANEXO 1: Generación y Configuración del Keystore Estático
+
+Para generar el almacén de claves estático utilizado en este proyecto y extraer los hashes necesarios para Firebase, se ejecutaron los siguientes comandos usando la herramienta 'keytool' del JDK integrada en Android Studio. 
+
+IMPORTANTE: Es necesario ejecutar estos pasos desde la consola de comandos tradicional de Windows (CMD), ya que PowerShell puede presentar problemas al interpretar las rutas con espacios.
+
+1. Navegar al directorio del módulo principal de la aplicación:
+   cd app
+
+2. Generar el archivo my-debug.keystore con la contraseña estándar 'android':
+   "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkey -v -keystore my-debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android
+
+   Al ejecutar este comando, el asistente solicitará varios datos (Nombre, Unidad Organizativa, etc.). Se debe pulsar ENTER en todos ellos para aceptar el valor por defecto hasta llegar a la pregunta de confirmación final, donde se debe escribir "si":
+
+   ¿Es correcto CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown?
+     [no]:  si
+
+3. Extraer las huellas criptográficas (SHA-1 y SHA-256):
+   "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore my-debug.keystore -alias androiddebugkey -storepass android -keypass android
+
+   * Registro en Firebase: Acceder a la consola web de Firebase, ir a "Configuracion del proyecto" (icono de rueda dentada) > pestana "General". En la seccion inferior "Tus aplicaciones", seleccionar la app Android, hacer clic en el boton "Anadir huella digital" y pegar los hashes SHA-1 y SHA-256 generados en la consola.
+
+4. Modificación en app/build.gradle:
+Para que el pipeline de Jenkins utilice este keystore automáticamente al compilar, se añade el siguiente bloque dentro de la sección 'android {}':
+
+    signingConfigs {
+        debug {
+            storeFile file("my-debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            ...
+            signingConfig signingConfigs.debug
+            ...
+        }
+    }
