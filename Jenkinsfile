@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // Token personal de GitHub con permisos de 'repo' para poder crear releases
-        GH_TOKEN_CREDS = 'github-token-darthademie'
+        GH_TOKEN_CREDS = 'github-darthademie'
         // Definimos la versión
         TAG = "1.${env.BUILD_NUMBER}"
         // Repositorio para la herramienta de GitHub CLI
