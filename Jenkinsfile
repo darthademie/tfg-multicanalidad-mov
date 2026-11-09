@@ -15,10 +15,35 @@ pipeline {
             }
         }
 
-        stage('2. Construir APK (Android SDK)') {
+        stage('2. Actualizar Versión (GitOps)') {
+            steps {
+                echo 'Actualizando versionCode y versionName en build.gradle...'
+                withCredentials([usernamePassword(credentialsId: env.GH_TOKEN_CREDS, usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                    sh """
+                    # 1. Configurar identidad de Git
+                    git config --global user.email "jenkins@teleupm.com"
+                    git config --global user.name "Jenkins CI"
+                    
+                    # 2. Inyectar la nueva versión usando sed con expresiones regulares (regex)
+                    # Sustituye el número actual por el BUILD_NUMBER de Jenkins
+                    sed -i -E "s/versionCode [0-9]+/versionCode ${env.BUILD_NUMBER}/g" app/build.gradle
+                    # Sustituye el texto entre comillas por nuestro TAG (ej: "1.25")
+                    sed -i -E "s/versionName \\"[^\\"]+\\"/versionName \\"${TAG}\\"/g" app/build.gradle
+                    
+                    # 3. Hacer Commit y Push al repositorio
+                    git add app/build.gradle
+                    git commit -m "gitops: Bump version to ${TAG} [skip ci]" || echo "No hay cambios"
+                    git push https://\${GH_USER}:\${GH_TOKEN}@github.com/${GH_REPO}.git HEAD:main
+                    """
+                }
+            }
+        }
+
+        stage('3. Construir APK (Android SDK)') {
             steps {
                 echo 'Levantando contenedor con SDK de Android y compilando...'
                 sh """
+                # La compilación ahora usará el build.gradle que acabamos de modificar
                 tar -cf - . | docker run --name android-builder -i mingc/android-build-box:latest bash -c "
                     mkdir -p /workspace && cd /workspace 
                     tar -xf - 
@@ -39,47 +64,40 @@ pipeline {
             }
         }
 
-        stage('3. Análisis de Seguridad (MAST Blackbox)') {
+        stage('4. Análisis de Seguridad (MAST Blackbox)') {
             steps {
-                echo 'Destripando el APK en busca de secretos, URIs y vulnerabilidades...'
+                echo 'Analizando el APK en busca de secretos, URIs y vulnerabilidades...'
                 sh """
-                # 1. Usamos la imagen oficial de Python en Alpine (ya trae pip)
-                # 2. Instalamos Java (openjdk11) y la herramienta apkleaks
-                tar -cf - app-debug.apk | docker run --rm -i python:3.9-alpine sh -c "
-                    # Instalamos dependencias del sistema necesarias
+                # Usamos un contenedor con nombre fijo (apk-scanner) y SIN --rm para que no se autodestruya
+                tar -cf - app-debug.apk | docker run --name apk-scanner -i python:3.9-alpine sh -c "
+                    # Instalamos dependencias
                     apk add --no-cache openjdk11-jre unzip git wget
-                    
-                    # Instalamos apkleaks a traves de pip
                     pip install apkleaks
                     
-                    # Extraemos el APK del pipe tar
+                    # Extraemos APK
                     mkdir -p /workspace && cd /workspace
                     tar -xf -
                     
-                    echo 'Analizando APK...'
-                    # Ejecutamos APKLeaks. 
-                    # El argumento --compile fuerza la descarga de jadx si no está,
-                    # pero como es un shell interactivo ('-i'), le pasamos un 'yes' por delante
+                    # Ejecutamos el análisis
                     yes | apkleaks -f app-debug.apk -o /reporte-mast.txt || true
-                    
-                    # Devolvemos el reporte empaquetado en tar para esquivar DooD
-                    tar -cf - /reporte-mast.txt
-                " > reporte.tar
-                
-                # Desempaquetamos el tar resultante en el workspace de Jenkins
-                tar -xf reporte.tar
+                "
                 """
             }
             post {
                 always {
                     echo 'Extrayendo informe de seguridad...'
-                    // Guardamos el informe como artefacto (ahora el archivo se llama reporte-mast.txt pero está en la raíz del workspace)
+                    sh """
+                    # Rescatamos el informe con docker cp
+                    docker cp apk-scanner:/reporte-mast.txt ./reporte-mast.txt || true
+                    # Ahora sí destruimos el contenedor
+                    docker rm apk-scanner || true
+                    """
                     archiveArtifacts artifacts: 'reporte-mast.txt', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('4. Publicar en GitHub Releases') {
+        stage('5. Publicar en GitHub Releases') {
             steps {
                 echo 'Creando Release en GitHub y subiendo el APK...'
                 withCredentials([usernamePassword(credentialsId: env.GH_TOKEN_CREDS, usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
