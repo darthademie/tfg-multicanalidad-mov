@@ -41,25 +41,26 @@ pipeline {
 
         stage('3. Análisis de Seguridad (MAST Blackbox)') {
             steps {
-                echo 'Analizando el APK en busca de secretos, URIs y vulnerabilidades...'
+                echo 'Destripando el APK en busca de secretos, URIs y vulnerabilidades...'
                 sh """
-                # 1. Creamos el contenedor sin arrancarlo
-                # Le pasamos los argumentos como si lo ejecutáramos en consola normal
-                docker create --name apk-scanner dwisiswant0/apkleaks:latest -f /app-debug.apk -o /reporte-mast.txt
+                # 1. Creamos el contenedor. 
+                # Añadimos '-i' (Interactive) para mantener abierta la entrada de teclado (STDIN)
+                docker create -i --name apk-scanner dwisiswant0/apkleaks:latest -f /app-debug.apk -o /reporte-mast.txt
                 
-                # 2. Copiamos el APK hacia dentro del contenedor inactivo 
-                # (Así esquivamos el problema de los volúmenes DooD sin usar pipes de tar)
+                # 2. Inyectamos el APK dentro del contenedor inactivo
                 docker cp ./app-debug.apk apk-scanner:/app-debug.apk
                 
-                # 3. Arrancamos el contenedor y adjuntamos la salida para ver los logs en Jenkins
-                docker start -a apk-scanner
+                # 3. Arrancamos adjuntando la terminal (-i) y le inyectamos un 'Y' automático
+                # Esto simula que un humano ha pulsado la tecla Y y el Intro al saltar el prompt,
+                # Y permitirá la instalación de la biblioteca jadx de forma automática
+                echo 'Y' | docker start -i apk-scanner
                 """
             }
             post {
                 always {
                     echo 'Extrayendo informe de seguridad...'
                     sh """
-                    # 4. Rescatamos el informe .txt a Jenkins y borramos el contenedor
+                    # Rescatamos el informe .txt a Jenkins y borramos el contenedor
                     docker cp apk-scanner:/reporte-mast.txt ./reporte-mast.txt || true
                     docker rm apk-scanner || true
                     """
