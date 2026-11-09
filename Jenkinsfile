@@ -41,29 +41,28 @@ pipeline {
 
         stage('3. Análisis de Seguridad (MAST Blackbox)') {
             steps {
-                echo 'Destripando el APK en busca de secretos, URIs y vulnerabilidades...'
+                echo 'Analizando el APK en busca de secretos, URIs y vulnerabilidades...'
                 sh """
-                # Inyectamos el APK compilado en la imagen oficial de apkleaks
-                # Sobrescribimos el entrypoint con 'sh' para usar nuestra tubería tar y esquivar el DooD
-                tar -cf - app-debug.apk | docker run --name apk-scanner --entrypoint sh -i dwisiswant0/apkleaks:latest -c "
-                    mkdir -p /workspace && cd /workspace
-                    tar -xf -
-                    
-                    echo 'Analizando APK...'
-                    # Ejecutamos APKLeaks y le pedimos que genere el reporte en txt
-                    apkleaks -f app-debug.apk -o reporte-mast.txt
-                "
+                # 1. Creamos el contenedor sin arrancarlo
+                # Le pasamos los argumentos como si lo ejecutáramos en consola normal
+                docker create --name apk-scanner dwisiswant0/apkleaks:latest -f /app-debug.apk -o /reporte-mast.txt
+                
+                # 2. Copiamos el APK hacia dentro del contenedor inactivo 
+                # (Así esquivamos el problema de los volúmenes DooD sin usar pipes de tar)
+                docker cp ./app-debug.apk apk-scanner:/app-debug.apk
+                
+                # 3. Arrancamos el contenedor y adjuntamos la salida para ver los logs en Jenkins
+                docker start -a apk-scanner
                 """
             }
             post {
                 always {
                     echo 'Extrayendo informe de seguridad...'
                     sh """
-                    # Rescatamos el informe .txt a Jenkins y borramos el contenedor
-                    docker cp apk-scanner:/workspace/reporte-mast.txt ./reporte-mast.txt || true
+                    # 4. Rescatamos el informe .txt a Jenkins y borramos el contenedor
+                    docker cp apk-scanner:/reporte-mast.txt ./reporte-mast.txt || true
                     docker rm apk-scanner || true
                     """
-                    // Guardamos el informe como artefacto para poder descargarlo desde la web de Jenkins
                     archiveArtifacts artifacts: 'reporte-mast.txt', allowEmptyArchive: true
                 }
             }
