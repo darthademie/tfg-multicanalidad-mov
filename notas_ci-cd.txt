@@ -26,7 +26,7 @@ IMPORTANTE: Es necesario ejecutar estos pasos desde la consola de comandos tradi
      [no]:  si
 
 3. Extraer las huellas criptográficas (SHA-1 y SHA-256):
-   "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore my-debug.keystore -alias androiddebugkey -storepass android -keypass android
+   "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -J-Duser.language=en -list -v -keystore my-debug.keystore -alias androiddebugkey -storepass android -keypass android
 
    * Registro en Firebase: Acceder a la consola web de Firebase, ir a "Configuracion del proyecto" (icono de rueda dentada) > pestana "General". En la seccion inferior "Tus aplicaciones", seleccionar la app Android, hacer clic en el boton "Anadir huella digital" y pegar los hashes SHA-1 y SHA-256 generados en la consola.
 

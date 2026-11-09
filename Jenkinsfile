@@ -53,13 +53,13 @@ pipeline {
         stage('3. Publicar en GitHub Releases') {
             steps {
                 echo 'Creando Release en GitHub y subiendo el APK...'
-                withCredentials([string(credentialsId: env.GH_TOKEN_CREDS, variable: 'GH_TOKEN')]) {
+                // Cambiamos string() por usernamePassword() apuntando a tu credencial actual
+                withCredentials([usernamePassword(credentialsId: 'github-darthademie', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh """
-                    # Usamos el contenedor oficial de GitHub CLI (gh)
-                    # Le pasamos el APK por tubería para esquivar el problema DooD
+                    # Pasamos GH_TOKEN (la contraseña) al contenedor. 
+                    # La variable GH_USER se extrae de Jenkins pero simplemente la ignoramos.
                     tar -cf - app-debug.apk | docker run --rm -i -e GH_TOKEN=\${GH_TOKEN} ghcr.io/cli/cli bash -c "
                         tar -xf -
-                        # Creamos la release adjuntando el archivo
                         gh release create v${TAG} app-debug.apk \\
                             --repo ${GH_REPO} \\
                             --title 'Versión de Desarrollo v${TAG}' \\
