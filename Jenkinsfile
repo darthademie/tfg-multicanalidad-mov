@@ -2,11 +2,8 @@ pipeline {
     agent any 
 
     environment {
-        // Token personal de GitHub con permisos de 'repo' para poder crear releases
         GH_TOKEN_CREDS = 'github-darthademie'
-        // Definimos la versión
         TAG = "1.${env.BUILD_NUMBER}"
-        // Repositorio para la herramienta de GitHub CLI
         GH_REPO = 'darthademie/tfg-multicanalidad-mov'
     }
 
@@ -22,13 +19,10 @@ pipeline {
             steps {
                 echo 'Levantando contenedor con SDK de Android y compilando...'
                 sh """
-                # 1. Empaquetamos el código y lo enviamos al contenedor oficial de Android
-                # Usamos un contenedor nombrado para poder extraer el APK después
                 tar -cf - . | docker run --name android-builder -i mingc/android-build-box:latest bash -c "
                     mkdir -p /workspace && cd /workspace 
                     tar -xf - 
                     chmod +x ./gradlew 
-                    # Ejecutamos la compilación Debug
                     ./gradlew assembleDebug
                 "
                 """
@@ -37,28 +31,49 @@ pipeline {
                 always {
                     echo 'Extrayendo APK del contenedor...'
                     sh """
-                    # 2. Rescatamos el APK desde la ruta estándar de Gradle hacia el workspace de Jenkins
                     docker cp android-builder:/workspace/app/build/outputs/apk/debug/app-debug.apk ./app-debug.apk || true
-                    
-                    # 3. Destruimos el contenedor pesado de compilación
                     docker rm android-builder || true
                     """
-                    
-                    // Guardamos el APK en Jenkins por si la subida a GitHub falla
                     archiveArtifacts artifacts: 'app-debug.apk', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('3. Publicar en GitHub Releases') {
+        stage('3. Análisis de Seguridad (MAST Blackbox)') {
+            steps {
+                echo 'Destripando el APK en busca de secretos, URIs y vulnerabilidades...'
+                sh """
+                # Inyectamos el APK compilado en la imagen oficial de apkleaks
+                # Sobrescribimos el entrypoint con 'sh' para usar nuestra tubería tar y esquivar el DooD
+                tar -cf - app-debug.apk | docker run --name apk-scanner --entrypoint sh -i dwisiswant0/apkleaks:latest -c "
+                    mkdir -p /workspace && cd /workspace
+                    tar -xf -
+                    
+                    echo 'Analizando APK...'
+                    # Ejecutamos APKLeaks y le pedimos que genere el reporte en txt
+                    apkleaks -f app-debug.apk -o reporte-mast.txt
+                "
+                """
+            }
+            post {
+                always {
+                    echo 'Extrayendo informe de seguridad...'
+                    sh """
+                    # Rescatamos el informe .txt a Jenkins y borramos el contenedor
+                    docker cp apk-scanner:/workspace/reporte-mast.txt ./reporte-mast.txt || true
+                    docker rm apk-scanner || true
+                    """
+                    // Guardamos el informe como artefacto para poder descargarlo desde la web de Jenkins
+                    archiveArtifacts artifacts: 'reporte-mast.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('4. Publicar en GitHub Releases') {
             steps {
                 echo 'Creando Release en GitHub y subiendo el APK...'
-                // Cambiamos string() por usernamePassword() apuntando a tu credencial actual
-                withCredentials([usernamePassword(credentialsId: 'github-darthademie', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: env.GH_TOKEN_CREDS, usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh """
-                    # Usamos un alpine linux para esquivar el bloqueo 403 de ghcr.io si descargamos su imagen
-                    # de forma directa
-                    # Instalamos github-cli al vuelo con 'apk add' antes de lanzar el comando gh
                     tar -cf - app-debug.apk | docker run --rm -i -e GH_TOKEN=\${GH_TOKEN} alpine:latest sh -c "
                         apk add --no-cache github-cli && \\
                         tar -xf - && \\
