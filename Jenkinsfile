@@ -56,10 +56,12 @@ pipeline {
                 // Cambiamos string() por usernamePassword() apuntando a tu credencial actual
                 withCredentials([usernamePassword(credentialsId: 'github-darthademie', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh """
-                    # Pasamos GH_TOKEN (la contraseña) al contenedor. 
-                    # La variable GH_USER se extrae de Jenkins pero simplemente la ignoramos.
-                    tar -cf - app-debug.apk | docker run --rm -i -e GH_TOKEN=\${GH_TOKEN} ghcr.io/cli/cli bash -c "
-                        tar -xf -
+                    # Usamos un alpine linux para esquivar el bloqueo 403 de ghcr.io si descargamos su imagen
+                    # de forma directa
+                    # Instalamos github-cli al vuelo con 'apk add' antes de lanzar el comando gh
+                    tar -cf - app-debug.apk | docker run --rm -i -e GH_TOKEN=\${GH_TOKEN} alpine:latest sh -c "
+                        apk add --no-cache github-cli && \\
+                        tar -xf - && \\
                         gh release create v${TAG} app-debug.apk \\
                             --repo ${GH_REPO} \\
                             --title 'Versión de Desarrollo v${TAG}' \\
