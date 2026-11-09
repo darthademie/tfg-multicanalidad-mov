@@ -43,27 +43,37 @@ pipeline {
             steps {
                 echo 'Destripando el APK en busca de secretos, URIs y vulnerabilidades...'
                 sh """
-                # 1. Creamos el contenedor. 
-                # Añadimos '-i' (Interactive) para mantener abierta la entrada de teclado (STDIN)
-                docker create -i --name apk-scanner dwisiswant0/apkleaks:latest -f /app-debug.apk -o /reporte-mast.txt
+                # 1. Usamos la imagen oficial de Python en Alpine (ya trae pip)
+                # 2. Instalamos Java (openjdk11) y la herramienta apkleaks
+                tar -cf - app-debug.apk | docker run --rm -i python:3.9-alpine sh -c "
+                    # Instalamos dependencias del sistema necesarias
+                    apk add --no-cache openjdk11-jre unzip git wget
+                    
+                    # Instalamos apkleaks a traves de pip
+                    pip install apkleaks
+                    
+                    # Extraemos el APK del pipe tar
+                    mkdir -p /workspace && cd /workspace
+                    tar -xf -
+                    
+                    echo 'Analizando APK...'
+                    # Ejecutamos APKLeaks. 
+                    # El argumento --compile fuerza la descarga de jadx si no está,
+                    # pero como es un shell interactivo ('-i'), le pasamos un 'yes' por delante
+                    yes | apkleaks -f app-debug.apk -o /reporte-mast.txt || true
+                    
+                    # Devolvemos el reporte empaquetado en tar para esquivar DooD
+                    tar -cf - /reporte-mast.txt
+                " > reporte.tar
                 
-                # 2. Inyectamos el APK dentro del contenedor inactivo
-                docker cp ./app-debug.apk apk-scanner:/app-debug.apk
-                
-                # 3. Arrancamos adjuntando la terminal (-i) y le inyectamos un 'Y' automático
-                # Esto simula que un humano ha pulsado la tecla Y y el Intro al saltar el prompt,
-                # Y permitirá la instalación de la biblioteca jadx de forma automática
-                echo 'Y' | docker start -i apk-scanner
+                # Desempaquetamos el tar resultante en el workspace de Jenkins
+                tar -xf reporte.tar
                 """
             }
             post {
                 always {
                     echo 'Extrayendo informe de seguridad...'
-                    sh """
-                    # Rescatamos el informe .txt a Jenkins y borramos el contenedor
-                    docker cp apk-scanner:/reporte-mast.txt ./reporte-mast.txt || true
-                    docker rm apk-scanner || true
-                    """
+                    // Guardamos el informe como artefacto (ahora el archivo se llama reporte-mast.txt pero está en la raíz del workspace)
                     archiveArtifacts artifacts: 'reporte-mast.txt', allowEmptyArchive: true
                 }
             }
