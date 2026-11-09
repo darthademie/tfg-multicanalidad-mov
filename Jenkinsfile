@@ -43,7 +43,7 @@ pipeline {
                             
                             # 3. Hacer Commit y Push al repositorio con la etiqueta mágica
                             git add app/build.gradle
-                            git commit -m "gitops: Bump version to ${TAG} [skip ci]" || echo "No hay cambios"
+                            git commit -m "gitops: Despliegue automático de versión ${TAG} [skip ci]" || echo "No hay cambios"
                             git push https://\${GH_USER}:\${GH_TOKEN}@github.com/${GH_REPO}.git HEAD:main
                             """
                         }
