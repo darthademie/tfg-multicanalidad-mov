@@ -15,4 +15,6 @@
     <string name="action_sign_in_google">Iniciar sesión con Google</string>
     <string name="action_remember_me">Recuérdame al entrar</string>
     <string name="logo_desc">Logo de la aplicación</string>
+    <string name="plataforma_analytics">movil_android</string>
+    <string name="plataforma_ofertas">mobile</string>
 </resources>

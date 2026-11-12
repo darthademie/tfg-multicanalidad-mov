@@ -17,6 +17,7 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 public class TarifasFragment extends Fragment {
+
+    private FirebaseAnalytics mFirebaseAnalytics;
 
     private static final String ARG_TYPE = "type";
     private boolean isActiveTab;
@@ -48,6 +51,9 @@ public class TarifasFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(requireContext());
+
         if (getArguments() != null) {
             isActiveTab = getArguments().getBoolean(ARG_TYPE);
         }
@@ -133,6 +139,39 @@ public class TarifasFragment extends Fragment {
         }
     }
 
+    private void logJourneyEvent(String eventName, String motivo, String tarifaId) {
+        Bundle bundle = new Bundle();
+        if (motivo != null && !motivo.isEmpty()) {
+            bundle.putString("motivo", motivo);
+        }
+        bundle.putString("uid_fb", currentUid);
+        bundle.putString("plataforma", getString(R.string.plataforma_analytics));
+        bundle.putString("tarifa_id", tarifaId);
+        mFirebaseAnalytics.logEvent(eventName, bundle);
+    }
+
+    private void showReasonDialog(String eventName, Tarifa tarifa, Runnable onSuccess) {
+        String[] reasonsDisplay = {"Precio muy alto", "Le doy poco uso", "Mala calidad del servicio", "Mejor oferta en la competencia", "Otros"};
+        String[] reasonsKeys = {"precio_alto", "poco_uso", "mala_calidad", "mejor_oferta_competencia", "otros"};
+        
+        final int[] selectedPosition = {0};
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("¿Cuál es el motivo?");
+        builder.setSingleChoiceItems(reasonsDisplay, 0, (dialog, which) -> {
+            selectedPosition[0] = which;
+        });
+        builder.setPositiveButton("Enviar", (dialog, which) -> {
+            String motivo = reasonsKeys[selectedPosition[0]];
+            logJourneyEvent(eventName, motivo, tarifa.id);
+            if (onSuccess != null) {
+                onSuccess.run();
+            }
+        });
+        builder.setNegativeButton("Cancelar", null);
+        builder.show();
+    }
+
     private void onTarifaClicked(Tarifa tarifa) {
         if (currentUid == null) return;
 
@@ -141,16 +180,22 @@ public class TarifasFragment extends Fragment {
             builder.setTitle("Cancelar Tarifa");
             builder.setMessage("¿Deseas cancelar la tarifa " + tarifa.nombre + "?");
             builder.setPositiveButton("Sí", (dialog, which) -> {
-                dbRef.child("usuarios").child(currentUid).child("tarifas").child(tarifa.userPushId)
-                        .removeValue()
-                        .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "Se aplicará a partir del siguiente mes", Toast.LENGTH_SHORT).show())
-                        .addOnFailureListener(e -> Toast.makeText(getContext(), "Inténtelo más tarde", Toast.LENGTH_SHORT).show());
+                showReasonDialog("tarifa_activa_cancelada", tarifa, () -> {
+                    dbRef.child("usuarios").child(currentUid).child("tarifas").child(tarifa.userPushId)
+                            .removeValue()
+                            .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "Se aplicará a partir del siguiente mes", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Toast.makeText(getContext(), "Inténtelo más tarde", Toast.LENGTH_SHORT).show());
+                });
             });
-            builder.setNegativeButton("No", null);
+            builder.setNegativeButton("No", (dialog, which) -> {
+                logJourneyEvent("tarifa_activa_mantenida", null, tarifa.id);
+            });
         } else {
             builder.setTitle("Asignar Tarifa");
             builder.setMessage("¿Deseas asignar la tarifa " + tarifa.nombre + "?");
             builder.setPositiveButton("Sí", (dialog, which) -> {
+                logJourneyEvent("tarifa_noactiva_aceptada", null, tarifa.id);
+
                 dbRef.child("usuarios").child(currentUid).child("tarifas").push()
                         .setValue(tarifa.id)
                         .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "La operación se ha aplicado con éxito para este mes", Toast.LENGTH_SHORT).show())
@@ -158,11 +203,13 @@ public class TarifasFragment extends Fragment {
                 // Aniadimos el valor de oferta al procesador de ofertas
                 Map<String, Object> ofertaData = new HashMap<>();
                 ofertaData.put("name", tarifa.id);
-                ofertaData.put("origin", "mobile");
+                ofertaData.put("origin", getString(R.string.plataforma_ofertas));
                 ofertaData.put("uid_fb", currentUid);
                 dbRef.child("cola_procesamiento/ofertas").push().setValue(ofertaData);
             });
-            builder.setNegativeButton("No", null);
+            builder.setNegativeButton("No", (dialog, which) -> {
+                showReasonDialog("tarifa_noactiva_cancelada", tarifa, null);
+            });
         }
         builder.show();
     }
