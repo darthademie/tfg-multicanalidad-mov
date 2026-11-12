@@ -164,6 +164,15 @@ public class TarifasFragment extends Fragment {
         builder.setPositiveButton("Enviar", (dialog, which) -> {
             String motivo = reasonsKeys[selectedPosition[0]];
             logJourneyEvent(eventName, motivo, tarifa.id);
+            
+            // Si el evento es una cancelación de tarifa (activa o no activa), enviamos a la cola de emails
+            if ("tarifa_activa_cancelada".equals(eventName) || "tarifa_noactiva_cancelada".equals(eventName)) {
+                Map<String, Object> emailData = new HashMap<>();
+                emailData.put("uid_fb", currentUid);
+                emailData.put("code", eventName);
+                dbRef.child("cola_procesamiento/emails").push().setValue(emailData);
+            }
+
             if (onSuccess != null) {
                 onSuccess.run();
             }
