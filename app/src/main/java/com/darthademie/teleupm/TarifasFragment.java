@@ -2,6 +2,7 @@ package com.darthademie.teleupm;
 
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -214,6 +215,9 @@ public class TarifasFragment extends Fragment {
                 ofertaData.put("name", tarifa.id);
                 ofertaData.put("origin", getString(R.string.plataforma_ofertas));
                 ofertaData.put("uid_fb", currentUid);
+                // MEDIDA (rama medidas): T0 de la latencia omnicanal. Marca de tiempo Unix en ms (UTC),
+                // tomada justo antes de enviar la compra a la cola de ofertas.
+                Log.i("MEDIDA", "T0_compra_android ts_ms=" + System.currentTimeMillis() + " tarifa=" + tarifa.id);
                 dbRef.child("cola_procesamiento/ofertas").push().setValue(ofertaData);
             });
             builder.setNegativeButton("No", (dialog, which) -> {
