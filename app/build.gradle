@@ -11,8 +11,8 @@ android {
         applicationId "com.darthademie.teleupm"
         minSdk 26
         targetSdk 34
-        versionCode 66
-        versionName "1.66"
+        versionCode 68
+        versionName "1.68"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
